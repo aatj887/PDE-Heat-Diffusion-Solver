@@ -23,6 +23,7 @@ Where $r = \frac{\alpha \Delta t}{(\Delta x)^2}$ is the diffusion number.
 
 ### Stability Condition
 For the explicit method to remain stable, the diffusion number must satisfy the Courant-Friedrichs-Lewy (CFL) condition:
+
 $$ r \leq 0.5 $$
 
 The solver automatically checks this condition and raises an error if the time step is too large.
