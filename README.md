@@ -1,6 +1,6 @@
 # PDE Heat Diffusion Solver 🌡️
 
-A Python application that simulates 1D heat diffusion using the Finite Difference Method (FTCS). The project includes a core NumPy-based solver and an interactive web dashboard built with Streamlit.
+A Python application that solves the 1D heat equation using two methods: a classical Finite Difference solver and a trained Neural Network. Both methods are compared side-by-side in an interactive Streamlit dashboard.
 
 ## 📖 Overview
 
@@ -14,28 +14,43 @@ Where:
 - $x$: Position [m]
 - $t$: Time [s]
 
-### Numerical Method
-We use the **Forward-Time Central-Space (FTCS)** explicit scheme to discretize the PDE:
-
-$$ u_{i}^{n+1} = u_{i}^{n} + r \cdot (u_{i+1}^{n} - 2u_{i}^{n} + u_{i-1}^{n}) $$
-
-Where $r = \frac{\alpha \Delta t}{(\Delta x)^2}$ is the diffusion number.
-
-### Stability Condition
-For the explicit method to remain stable, the diffusion number must satisfy the Courant-Friedrichs-Lewy (CFL) condition:
-
-$$ r \leq 0.5 $$
-
-The solver automatically checks this condition and raises an error if the time step is too large.
-
 ---
 
 ## 🚀 Features
 
-- **Core Solver**: Pure NumPy implementation of the FTCS algorithm.
-- **Vectorized**: Uses array slicing for high performance (no nested loops).
-- **Interactive UI**: Real-time adjustment of parameters (Diffusivity, Grid Size, Time Step) via Streamlit.
-- **Visualization**: Animated heat propagation plot using Plotly.
+### Part 1 — Finite Difference Method (FTCS)
+- Explicit **Forward-Time Central-Space (FTCS)** discretization:
+
+$$ u_{i}^{n+1} = u_{i}^{n} + r \cdot (u_{i+1}^{n} - 2u_{i}^{n} + u_{i-1}^{n}), \quad r = \frac{\alpha \Delta t}{(\Delta x)^2} $$
+
+- Automatic **CFL stability check** ($r \leq 0.5$) with user feedback.
+- Interactive controls for diffusivity, grid size, time step, rod length, and total time.
+- Execution time displayed in milliseconds.
+
+### Part 2 — Neural Network Prediction
+- A **4-layer MLP (256 units per layer)** trained to predict the final temperature profile directly from the initial condition and thermal diffusivity.
+- Supports three initial condition shapes: square pulse, single Gaussian, two Gaussians.
+- Optional overlay of the FD solver result for accuracy comparison (RMSE displayed).
+- Inference time displayed in milliseconds.
+
+### Speed Comparison
+- Bar chart comparing FD solver vs NN execution time for the same problem.
+- Speed-up factor shown as a metric.
+
+---
+
+## 📂 Project Structure
+
+```
+PDE-Heat-Diffusion-Solver/
+│
+├── solver.py           # Standalone FTCS solver with Matplotlib plot
+├── generate_data.py    # Generates training data (CSV) by running many FD simulations
+├── train_nn.py         # Trains the MLP and saves heat_nn.pt
+├── app.py              # Streamlit dashboard (FD + NN + speed comparison)
+├── requirements.txt    # Python dependencies
+└── README.md           # This file
+```
 
 ---
 
@@ -47,76 +62,97 @@ The solver automatically checks this condition and raises an error if the time s
    cd PDE-Heat-Diffusion-Solver
    ```
 
-2. **Install dependencies**
-   Create a `requirements.txt` file with the following content:
-   ```text
-   numpy
-   matplotlib
-   streamlit
-   plotly
-   pandas
+2. **Create and activate a virtual environment** (recommended)
+   ```bash
+   python -m venv venv
+   source venv/bin/activate   # Windows: venv\Scripts\activate
    ```
-   Then install them:
+
+3. **Install dependencies**
    ```bash
    pip install -r requirements.txt
+   pip install torch            # required for the NN section
    ```
 
 ---
 
 ## 💻 Usage
 
-### 1. Running the Core Script
-You can run the standalone solver script to generate a static Matplotlib plot:
-
+### 1. Standalone FD solver
+Generates a static Matplotlib plot of the heat diffusion:
 ```bash
 python solver.py
 ```
 
-### 2. Running the Interactive Dashboard
-Launch the Streamlit app to visualize the heat diffusion dynamically:
+### 2. Generate training data
+Runs the FD solver across thousands of randomised initial conditions and thermal diffusivities, saving results to `heat_data.csv`:
+```bash
+python generate_data.py
+```
 
+Key settings at the top of the file:
+
+| Variable | Default | Description |
+|---|---|---|
+| `N_SAMPLES` | 5 000 | Number of simulations |
+| `N_SNAPSHOTS` | 20 | Time snapshots saved per simulation |
+| `T_MAX` | 300 s | Maximum simulation time |
+| `ALPHA_RANGE` | (1e-7, 1e-4) | Thermal diffusivity range |
+
+### 3. Train the neural network
+Loads `heat_data.csv`, trains the MLP, and saves `heat_nn.pt`:
+```bash
+python train_nn.py
+```
+
+The script prints train/val/test MSE and RMSE, and shows a training curve + prediction comparison plot.
+
+### 4. Launch the interactive dashboard
 ```bash
 streamlit run app.py
 ```
 
----
-
-## 📂 Project Structure
-
-```
-PDE-Heat-Diffusion-Solver/
-│
-├── solver.py        # Core logic: NumPy solver and Matplotlib static plotting
-├── app.py           # Streamlit web application UI and Plotly animation
-├── README.md        # Project documentation
-└── requirements.txt # Python dependencies
-```
+> **Note**: `heat_nn.pt` must exist before launching the app. Run steps 2 and 3 first.
 
 ---
 
-## 🎮 App Controls (Streamlit)
+## 🎮 Dashboard Controls
 
-The web application (`app.py`) allows you to tweak simulation parameters on the fly:
+### FD Section
+- **Diffusivity (α)**: Controls how fast heat spreads.
+- **Grid Size (Nx)**: Number of spatial points (higher = finer resolution, slower).
+- **Time Step (dt)**: Must satisfy the CFL condition; the app warns if unstable.
+- **Rod Length / Total Time**: Set via number inputs.
+- **▶️ / ⏸️ / 🔄**: Play, pause, and rewind the time animation.
 
-- **Diffusivity ($\alpha$)**: Controls how fast heat spreads. Higher values = faster diffusion.
-- **Grid Size ($N_x$)**: The number of spatial points. Higher values increase spatial resolution but require more computation.
-- **Time Step ($\Delta t$)**: The size of the time jump per iteration.
-  > ⚠️ **Warning**: If $\Delta t$ is too large, the stability check will fail, and the app will ask you to decrease it.
+### NN Section
+- **Thermal diffusivity**: Log-spaced slider over the training range (1×10⁻⁷ to 1×10⁻⁴ m²/s).
+- **Initial condition shape**: Square pulse, Gaussian, or two Gaussians with adjustable parameters.
+- **Overlay FD ground truth**: Runs the FD solver on the same inputs and overlays it for comparison.
+
+---
+
+## 🧠 Neural Network Architecture
+
+| Property | Value |
+|---|---|
+| Input | log₁₀(α) + 51 initial temperature values = 52 features |
+| Hidden layers | 4 × 256 units (BatchNorm + ReLU + Dropout 0.1) |
+| Output | 51 final temperature values |
+| Loss | MSE |
+| Optimiser | Adam (lr = 1×10⁻³) with ReduceLROnPlateau |
+| Data split | 70% train / 15% val / 15% test |
+
+Alpha is log-transformed before input because it spans three orders of magnitude. All inputs and outputs are standardised using training-set statistics stored in the checkpoint.
 
 ---
 
 ## 📈 Example Output
 
-**Initial Condition**: A "square pulse" of 100°C in the center of a 1-meter rod.
-**Boundary Conditions**: Both ends held at 0°C (Dirichlet).
+**Initial Condition**: A square pulse of 100°C in the centre of a 1-metre rod, with both ends held at 0°C (Dirichlet BCs).
 
-*The visualization shows the heat smoothing out over time until the entire rod reaches thermal equilibrium with the boundaries.*
-
----
-
-## 🔭 Future Roadmap
-
-- [ ] Implement Neumann (insulated) boundary conditions.
-- [ ] Add 2D Heat Diffusion support.
-- [ ] Allow users to draw custom initial temperature profiles.
-
+The dashboard shows:
+1. Temperature profile (initial → final)
+2. Colour-coded rod visualisation (blue = cold, red = hot)
+3. Full space-time heatmap (FD) or initial-vs-final comparison (NN)
+4. Execution time bar chart comparing both methods
