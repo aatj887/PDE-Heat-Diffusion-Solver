@@ -5,4 +5,3 @@ __pycache__
 
 # Generated data and model artefacts (too large / reproducible from scripts)
 heat_data.csv
-heat_nn.pt
